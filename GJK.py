@@ -1,25 +1,26 @@
 from Shape import Shape
 from sklearn.preprocessing import normalize
+import numpy as np
+
 
 #global variables:
 origin = (0.0, 0.0)
-d = tuple()
 
 def GJK(ShapeA: Shape, ShapeB: Shape):
 
-    # First simplex point using Minkowski Difference.
-    simplex = [supportPoint(ShapeA, ShapeB)]
-
     # Original direction is the difference between the center points of the shapes.
-    d = (ShapeA.center_point[0] - ShapeB.center_point[0], 
-        ShapeA.center_point[1] - ShapeB.center_point[1])
+    d = [ShapeB.center_point[0] - ShapeA.center_point[0], 
+        ShapeB.center_point[1] - ShapeA.center_point[1]]
+    
+    # First simplex point using Minkowski Difference.
+    simplex = [supportPoint(ShapeA, ShapeB, d)]
 
     # New direction towards origin.
-    d = (origin[0] - simplex[0][0], origin[1] - simplex[0][1])
+    d = [origin[0] - simplex[0][0], origin[1] - simplex[0][1]]
 
     while True:
         # Point A is always the new point added.
-        A = supportPoint(ShapeA, ShapeB)
+        A = supportPoint(ShapeA, ShapeB, d)
         dot_product = sum(x * y for x, y in zip(A, d))
 
         # New point does not cross the origin. Making it impossible to enclose the origin.
@@ -27,17 +28,19 @@ def GJK(ShapeA: Shape, ShapeB: Shape):
             return False
         simplex.append(A)
 
-        if len(simplex) == 2:
-            LineCase(simplex)
-        else:
-            TriangleCase(simplex)
+        if simplexHandler():
+            return True
 
-
-def supportPoint(ShapeA: Shape, ShapeB: Shape):
+def supportPoint(ShapeA: Shape, ShapeB: Shape, d):
  #Minkowski Difference for Two-dimensional Shapes.
-    negated_d = (-d[0], -d[1])
+    negated_d = [-x for x in d]
     return (ShapeA.furthest_point_from(d)[0] - ShapeB.furthest_point_from(negated_d)[0] ,
             ShapeA.furthest_point_from(d)[1] - ShapeB.furthest_point_from(negated_d)[1])
+
+def simplexHandler(simplex: list):
+    if len(simplex) == 2:
+       return LineCase(simplex)
+    return TriangleCase(simplex)
 
 def LineCase(simplex: list):
     A, B = simplex[1], simplex[0]
@@ -46,7 +49,7 @@ def LineCase(simplex: list):
     vector_A0 = (A[0] - origin[0], A[1] - origin[1])
 
     # (AB x A0) x AB gives us the perpendicular towards the origin.
-    d = TripleProduct(vector_AB, vector_A0)
+    d = TripleProduct(vector_AB, vector_A0, vector_AB)
     
     # Line case always returns False as we can not enclose the origin with a line.
     return False
@@ -58,31 +61,36 @@ def TriangleCase(simplex: list):
     vector_AC = (C[0] - A[0], C[1] - A[1]),
     vector_A0 = (A[0] - origin[0], A[1] - origin[1])
 
+    perpendicular_AB = TripleProduct(vector_AC,vector_AB,vector_AC)
+    perpendicular_AC = TripleProduct(vector_AB,vector_AC,vector_AC)
+
+    dot_product_AB = sum(x * y for x, y in zip(perpendicular_AB, vector_A0))
+    dot_product_AC = sum(x * y for x, y in zip(perpendicular_AC, vector_A0))
+
+    if dot_product_AB > 0:
+        # Origin outside of triangle. In region beyond AB.
+        simplex.remove(C)
+        d = perpendicular_AB
+        return False
+    if dot_product_AC > 0:
+        # Origin outside of triangle. In region beyond AC.
+        simplex.remove(B)
+        d = perpendicular_AC
+        return False
+
+    return True
+
+def TripleProduct(vector1: tuple, vector2: tuple, vector3):
+    x1, y1 = vector1[1][0] - vector1[0][0], vector1[1][1] - vector1[0][1]
+    x2, y2 = vector2[1][0] - vector2[0][0], vector2[1][1] - vector2[0][1]
+    x3, y3 = vector3[1][0] - vector3[0][0], vector3[1][1] - vector3[0][1]
     
-
-
-def TripleProduct(vector_AB: tuple, vector_A0: tuple):
-    x1, y1 = vector_AB[1][0] - vector_AB[0][0], vector_AB[1][1] - vector_AB[0][1]
-    x2, y2 = vector_A0[1][0] - vector_A0[0][0], vector_A0[1][1] - vector_A0[0][1]
+    V1xV2 = x1 * y2 - x2 * y1
     
-    AB_A0 = x1 * y2 - x2 * y1
-    
-    x3,y3 = AB_A0[1][0] - AB_A0[0][0], AB_A0[1][1] - AB_A0[0][1]
+    x4,y4 = V1xV2[1][0] - V1xV2[0][0], V1xV2[1][1] - V1xV2[0][1]
 
-    AB_A0_AB = x3 * y2 - x2 * y3
-    return AB_A0_AB
-
-
-
-
-            
-    
- 
-
-
-
-
-
+    V1xV2xV3 = x4 * y3 - x3 * y4
+    return V1xV2xV3
 
 # Test Cases
 
@@ -106,4 +114,4 @@ ShapeB = Shape([
     (-5, -5),
     (-5, 5)])
 
-GJK(ShapeA, ShapeB)
+print(GJK(ShapeA, ShapeB))
